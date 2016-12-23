@@ -50,11 +50,11 @@ type StatsDSink struct {
 
 	flushPeriod time.Duration
 
-	udpBuf    bytes.Buffer
+	tcpBuf    bytes.Buffer
 	timingBuf []byte
 
-	udpConn *net.UDPConn
-	udpAddr *net.UDPAddr
+	tcpConn *net.TCPConn
+	tcpAddr *net.TCPAddr
 
 	// map of {job,event,suffix} to a re-usable buffer prefixed with the key.
 	// Since each timing/gauge has a unique component (the time), we'll truncate to the prefix, write the timing,
@@ -88,19 +88,19 @@ const cmdChanBuffSize = 8192 // random-ass-guess
 const maxUdpBytes = 1440     // 1500(Ethernet MTU) - 60(Max UDP header size
 
 func NewStatsDSink(addr string, options *StatsDSinkOptions) (*StatsDSink, error) {
-	c, err := net.ListenPacket("udp", ":0")
+	c, err := net.ListenPacket("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
 
-	ra, err := net.ResolveUDPAddr("udp", addr)
+	ra, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &StatsDSink{
-		udpConn:       c.(*net.UDPConn),
-		udpAddr:       ra,
+		tcpConn:       c.(*net.TCPConn),
+		tcpAddr:       ra,
 		cmdChan:       make(chan statsdEmitCmd, cmdChanBuffSize),
 		drainDoneChan: make(chan struct{}),
 		stopDoneChan:  make(chan struct{}),
@@ -285,9 +285,9 @@ func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos 
 }
 
 func (s *StatsDSink) flush() {
-	if s.udpBuf.Len() > 0 {
-		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
-		s.udpBuf.Truncate(0)
+	if s.tcpBuf.Len() > 0 {
+		// s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.tcpBuf.Truncate(0)
 	}
 }
 
@@ -304,14 +304,14 @@ func (s *StatsDSink) writeStatsDMetric(b []byte) {
 		return
 	}
 
-	lenUdpBuf := s.udpBuf.Len()
+	lenUdpBuf := s.tcpBuf.Len()
 
 	if (lenb + lenUdpBuf) > maxUdpBytes {
-		s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
-		s.udpBuf.Truncate(0)
+		// s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.tcpBuf.Truncate(0)
 	}
 
-	s.udpBuf.Write(b)
+	s.tcpBuf.Write(b)
 }
 
 func (s *StatsDSink) getPrefixBuffer(job, event, suffix string) prefixBuffer {
