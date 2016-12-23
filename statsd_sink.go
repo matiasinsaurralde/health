@@ -88,7 +88,7 @@ const cmdChanBuffSize = 8192 // random-ass-guess
 const maxUdpBytes = 1440     // 1500(Ethernet MTU) - 60(Max UDP header size
 
 func NewStatsDSink(addr string, options *StatsDSinkOptions) (*StatsDSink, error) {
-	c, err := net.ListenPacket("tcp", ":0")
+	c, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ func (s *StatsDSink) processComplete(job string, status CompletionStatus, nanos 
 
 func (s *StatsDSink) flush() {
 	if s.tcpBuf.Len() > 0 {
-		// s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.tcpConn.Write(s.tcpBuf.Bytes())
 		s.tcpBuf.Truncate(0)
 	}
 }
@@ -307,7 +307,7 @@ func (s *StatsDSink) writeStatsDMetric(b []byte) {
 	lenUdpBuf := s.tcpBuf.Len()
 
 	if (lenb + lenUdpBuf) > maxUdpBytes {
-		// s.udpConn.WriteToUDP(s.udpBuf.Bytes(), s.udpAddr)
+		s.tcpConn.Write(s.tcpBuf.Bytes())
 		s.tcpBuf.Truncate(0)
 	}
 
